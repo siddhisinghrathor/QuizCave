@@ -1,11 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface UserResponse {
   name: string;
   email: string;
   phone: string;
   userId: string;
-  role: "admin" | "user" | string; // you can extend with more roles if needed
+  role: "admin" | "user" | string;
   designation: string;
-  profilePic: string;
+  profile: string | File;
   accessToken: string;
   refreshToken: string;
 }
@@ -27,13 +28,15 @@ export interface UserData {
   phone: string;
   userId: string;
   college?: string;
-  role: "admin" | "user" | string; // you can extend with more roles if needed
+  gender?: string;
+  role: "admin" | "user" | string;
   designation: string;
-  profilePic: string;
+  profilePic: string | File;
   marksheet: [];
 }
 
 export interface ContestData {
+  questions: any;
   _id: string;
   name: string;
   description: string;
@@ -41,13 +44,29 @@ export interface ContestData {
   startDate: string;
   declared: boolean;
   endDate: string;
+  registration?: boolean;
+  active?: boolean;
+  participants: string[];
+
   set: string;
   status: "active" | "inactive" | "completed";
   createdBy: string;
   createdAt: string;
   rules: string;
+  passingScore: number;
+  resgistration?: boolean;
+  attempted?: boolean;
 }
-
+export interface ContestDataForm {
+  title: string;
+  set: string;
+  instructions: string;
+  duration: string;
+  startDate: string;
+  endDate: string;
+  contestId: string;
+  active?: boolean;
+}
 export interface ContestResultData {
   _id: string;
   name: string;
@@ -79,6 +98,7 @@ export interface ResultCardProps {
 }
 
 export interface ResultDetails {
+  token: UserToken;
   _id: string;
   contestId: string;
   declared: boolean;
@@ -91,38 +111,46 @@ export interface ResultDetails {
 }
 
 export interface Address {
-  streetLine1: string;
-  streetLine2: string;
-  city: string;
-  state: string;
-  country: string;
-  zip: string;
+  streetLine1?: string;
+  streetLine2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  zip?: string;
 }
 
-// Define interface for form data
-export interface registrationFormData {
-  profilePic: string | File;
-  resume: string | File;
-  marksheet: string | File;
+export interface RegistrationFormData {
+  profile: File | null;
+  resume: File | null;
+  marksheet: File | null;
   name: string;
   email: string;
   phone: string;
-  altPhone: string;
+  altPhone?: string;
   password: string;
-  dob: string;
+  dob: string; // Changed to string to match form input
   studentId: string;
   gender: string;
   fatherName: string;
   motherName: string;
-  currentSemester: string;
+  currentSemester: string; // Changed to string to match select input
   branch: string;
   course: string;
   college: string;
-  cgpa: string;
-  passingYear: string;
-  backlog: string;
-  permAddress: Address;
-  currAddress: Address;
+  cgpa: string; // Changed to string to match form input
+  passingYear: string; // Changed to string to match form input
+  backlog: string; // Changed to string to match form input
+  permAddress: Address; // JSON string
+  currAddress: Address; // JSON string
+}
+
+export interface Address {
+  streetLine1?: string;
+  streetLine2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  zip?: string;
 }
 
 export interface QuestionData {
@@ -132,16 +160,23 @@ export interface QuestionData {
   multipleQuestion: string[];
   difficult: "easy" | "medium" | "hard" | string;
   type: "mcq" | string;
+  set: string;
 }
 
 export interface Question {
+  question: any;
+  type: "mcq" | "descriptive" | "multiple" | string;
+  set: string;
+  difficult: string;
+  name?: string;
   _id?: string;
   answer?: string[];
   questionId: {
-    question?: string;
+    split(arg0: string): unknown;
+    question?: string | any;
     mcqOptions?: string[];
     multipleQuestion?: string[];
-    questionImage?: string;
+    questionImage?: string | File;
     answer?: string;
     multipleAnswer?: string[];
     difficult?: "easy" | "medium" | "hard" | string;
@@ -153,9 +188,3 @@ export interface AnswerData {
   question: string;
   answer: string[];
 }
-
-// interface PdfCreatorProps {
-//   question?: Question[];
-//   username?: string;
-//   marks?: number;
-// }

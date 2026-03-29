@@ -1,66 +1,237 @@
-"use client";
+/* eslint-disable react-hooks/exhaustive-deps */
+// AssessmentPage.tsx
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
   ContestData,
   QuestionData,
   ResultDetails,
 } from "../../Interfaces/index";
 import { Question } from "./ContestQuestion";
+import { Counterdown } from "./Counterdown";
+import Service from "../../../config/Service";
 
 interface Props {
   contest: ContestData | null;
   resultDetails: ResultDetails | null;
   questionDetails: QuestionData[] | null;
+  shuffleQuestions: any;
+  setAssessmentComplete: (completed: boolean) => void;
 }
 
-const AssessmentPage = ({ resultDetails, contest, questionDetails }: Props) => {
-  const [next, setNext] = useState(0);
+const AssessmentPage = ({
+  resultDetails,
+  contest,
+  questionDetails,
+  shuffleQuestions,
+  setAssessmentComplete,
+}: Props) => {
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [questionStatuses, setQuestionStatuses] = useState<{
+    [key: string]: string;
+  }>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [, setTabSwitchCount] = useState(0);
+  const maxTabSwitches = 1;
 
-  const handleTabChange = () => {
-    setNext(questionDetails?.length ?? 0);
-  };
+  // Use a ref to hold a stable reference to the submission logic
+  const performFinalSubmitRef = useRef<() => Promise<void>>(() =>
+    Promise.resolve()
+  );
 
-  const handleContextMenu = (e: MouseEvent) => {
-    e.preventDefault();
-  };
+  const performFinalSubmit = async () => {
+    if (!resultDetails?._id) {
+      alert("Missing result ID. Cannot submit.");
+      return;
+    }
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key.startsWith("F") || e.key === "Escape") {
-      e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+
+    try {
+      const response = await Service.finalSubmitAnswers({
+        resultId: resultDetails._id,
+      });
+      console.log("Final submission response:", response);
+      console.log("Submission success:", response.data.success);
+      if (response.success) {
+        setAssessmentComplete(true);
+
+        alert("Submission successful.");
+      } else {
+        alert("Submission failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Submission failed:", error);
+      alert("Submission failed. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  // Update the ref whenever the performFinalSubmit function changes
   useEffect(() => {
-    window.addEventListener("contextmenu", handleContextMenu);
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("visibilitychange", handleTabChange);
+    performFinalSubmitRef.current = performFinalSubmit;
+  }, [performFinalSubmit]);
 
-    // Request full screen
-    document.documentElement.requestFullscreen?.({ navigationUI: "hide" });
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < (questionDetails?.length ?? 0) - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      alert("You have reached the end of the exam.");
+    }
+  };
+  useEffect(() => {
+  // Disable Right Click
+  const disableRightClick = (e: MouseEvent) => e.preventDefault();
+  document.addEventListener("contextmenu", disableRightClick);
 
-    return () => {
-      window.removeEventListener("contextmenu", handleContextMenu);
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("visibilitychange", handleTabChange);
-    };
-  }, []);
+  // Disable Inspect Keys
+  const disableKeys = (e: KeyboardEvent) => {
+    if (
+      e.key === "F12" ||
+      (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "C" || e.key === "J")) ||
+      (e.ctrlKey && e.key === "U")
+    ) {
+      e.preventDefault();
+      alert("Inspection tools are disabled during assessment.");
+    }
+  };
+  window.addEventListener("keydown", disableKeys);
 
-  // ✅ Callback to save answers from Question component
-  const handleSaveAnswer = (qid: string, value: any) => {
+  return () => {
+    document.removeEventListener("contextmenu", disableRightClick);
+    window.removeEventListener("keydown", disableKeys);
+  };
+}, []);
+useEffect(() => {
+  let checkInterval: any;
+
+  const detectDevTools = () => {
+    const threshold = 160;
+    const widthDiff = window.outerWidth - window.innerWidth > threshold;
+    const heightDiff = window.outerHeight - window.innerHeight > threshold;
+
+    if (widthDiff || heightDiff) {
+      alert("⚠️ Developer tools detected! Submitting assessment...");
+      performFinalSubmitRef.current();
+    }
+  };
+
+  checkInterval = setInterval(detectDevTools, 1000);
+
+  return () => clearInterval(checkInterval);
+}, []);
+
+
+
+  const handleSaveAnswer = (
+    qid: string,
+    value: any,
+    status: string = "attempted"
+  ) => {
     setAnswers((prev) => ({
       ...prev,
       [qid]: value,
     }));
+    setQuestionStatuses((prev) => ({
+      ...prev,
+      [qid]: status,
+    }));
   };
 
-  console.log("Rendering AssessmentPage with props:", {
-    resultDetails,
-    contest,
-    questionDetails,
-    answers,
-  });
+  const handleFinalSubmit = async () => {
+    const confirmSubmit = window.confirm(
+      "Are you sure you want to submit your final answers? You won’t be able to change them afterward."
+    );
+    if (!confirmSubmit) return;
+    performFinalSubmit();
+  };
+
+  const handleTimeUp = async () => {
+    alert("⏰ Time is up! Submitting your answers...");
+    performFinalSubmit();
+  };
+
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.({ navigationUI: "hide" });
+  }, []);
+
+  useEffect(() => {
+  const handleFullscreenExit = () => {
+    if (!document.fullscreenElement) {
+      alert("⚠️ You exited fullscreen. Submitting the test.");
+      performFinalSubmitRef.current();
+    }
+  };
+
+  document.addEventListener("fullscreenchange", handleFullscreenExit);
+
+  return () => document.removeEventListener("fullscreenchange", handleFullscreenExit);
+}, []);
+
+
+  // useEffect(() => {
+  //   const handleVisibilityChange = () => {
+  //     if (document.hidden) {
+  //       // Use the functional update to get the latest state
+  //       setTabSwitchCount((prevCount) => {
+  //         const newCount = prevCount + 1;
+  //         if (newCount > maxTabSwitches) {
+  //           alert(
+  //             "⚠️ Maximum tab switches exceeded. Submitting your assessment automatically."
+  //           );
+  //           performFinalSubmitRef.current(); // Use the ref to call the function
+  //         } else {
+  //           alert(
+  //             `⚠️ Warning! You have ${
+  //               maxTabSwitches - newCount
+  //             } warnings remaining. Switching tabs is not allowed.`
+  //           );
+  //         }
+  //         return newCount;
+  //       });
+  //     }
+  //   };
+
+  //   document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  //   return () => {
+  //     document.removeEventListener("visibilitychange", handleVisibilityChange);
+  //   };
+  // }, []); // Empty dependency array ensures the effect runs only once
+
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      setTabSwitchCount((prev) => {
+        if (prev + 1 > maxTabSwitches) {
+          alert("🚨 Tab switching limit exceeded. Auto-submitting test.");
+          performFinalSubmitRef.current();
+        } else {
+          alert(`⚠️ Switching tabs is not allowed. Remaining: ${maxTabSwitches - prev - 1}`);
+        }
+        return prev + 1;
+      });
+    }
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+}, []);
+
+
+useEffect(() => {
+  const warnBeforeUnload = (e: BeforeUnloadEvent) => {
+    e.preventDefault();
+    e.returnValue = "";
+  };
+  window.addEventListener("beforeunload", warnBeforeUnload);
+
+  return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+}, []);
+
 
   if (!contest || !resultDetails || !questionDetails) {
     return (
@@ -78,22 +249,131 @@ const AssessmentPage = ({ resultDetails, contest, questionDetails }: Props) => {
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">{contest.name} Assessment</h1>
-      <p className="text-gray-600 mb-4">
-        Total Questions: {questionDetails.length}
-      </p>
-
-      {/* ✅ Pass correct props */}
-      {questionDetails.map((q, index) => (
-        <Question
-          key={q._id}
-          Question={q}
-          resultId={resultDetails?._id}
-          number={index + 1}
-          onSaveAnswer={handleSaveAnswer}
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* 🔹 Header with Timer */}
+      <div className="flex justify-between items-center bg-white shadow p-4">
+        <h1 className="text-xl font-bold text-gray-800">
+          {contest?.name || "Assessment"}
+        </h1>
+        <Counterdown
+          duration={Number(contest?.duration) || 30}
+          onCountdownEnd={handleTimeUp}
         />
-      ))}
+      </div>
+
+      {/* 🔹 Main Body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left side: Question */}
+        <div className="w-3/4 p-6 overflow-y-auto">
+          {questionDetails[currentQuestionIndex] && (
+            <Question
+              key={questionDetails[currentQuestionIndex]._id}
+              Question={{
+                ...questionDetails[currentQuestionIndex],
+                type: questionDetails[currentQuestionIndex].type as
+                  | "short"
+                  | "numerical"
+                  | "long"
+                  | "multiple"
+                  | "mcq",
+                difficult: ["easy", "medium", "hard"].includes(
+                  questionDetails[currentQuestionIndex].difficult
+                )
+                  ? (questionDetails[currentQuestionIndex].difficult as
+                      | "easy"
+                      | "medium"
+                      | "hard")
+                  : undefined,
+              }}
+              resultId={resultDetails?._id}
+              number={currentQuestionIndex + 1}
+              shuffleQuestions={shuffleQuestions}
+              handleNextQuestion={handleNextQuestion}
+              onSaveAnswer={handleSaveAnswer}
+              answer={answers[questionDetails[currentQuestionIndex]._id]}
+            />
+          )}
+        </div>
+
+        {/* Right side: Question Panel */}
+        <div className="w-1/4 p-5 border-l bg-white shadow-inner overflow-y-auto flex flex-col">
+          <h3 className="text-lg font-bold mb-4 text-gray-700">
+            Question Panel
+          </h3>
+          <div className="grid grid-cols-5 gap-3">
+            {questionDetails.map((q, index) => {
+              const status = questionStatuses[q._id];
+              let buttonClass =
+                "bg-gray-200 text-black hover:scale-105 transition-transform duration-200";
+
+              if (status === "attempted") {
+                buttonClass =
+                  "bg-green-500 text-white hover:bg-green-600 hover:scale-105 transition-transform duration-200";
+              } else if (status === "review") {
+                buttonClass =
+                  "bg-yellow-400 text-black hover:bg-yellow-500 hover:scale-105 transition-transform duration-200";
+              }
+
+              if (index === currentQuestionIndex) {
+                buttonClass =
+                  "bg-blue-500 text-white ring-2 ring-blue-300 hover:bg-blue-600 hover:scale-110 transition-transform duration-200";
+              }
+
+              return (
+                <button
+                  key={q._id}
+                  className={`p-3 rounded-xl text-sm font-bold border shadow-sm ${buttonClass}`}
+                  onClick={() => setCurrentQuestionIndex(index)}
+                  title={
+                    status === "attempted"
+                      ? "Attempted"
+                      : status === "review"
+                      ? "Marked for Review"
+                      : "Unattempted"
+                  }
+                >
+                  {index + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div className="mt-6 space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-4 h-4 rounded bg-green-500"></span>
+              <span>Attempted</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-4 h-4 rounded bg-yellow-400"></span>
+              <span>Marked for Review</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-4 h-4 rounded bg-gray-300"></span>
+              <span>Unattempted</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-4 h-4 rounded bg-blue-500"></span>
+              <span>Current Question</span>
+            </div>
+          </div>
+
+          {/* Final Submit Button */}
+          <div className="mt-8">
+            <button
+              onClick={handleFinalSubmit}
+              disabled={submitting}
+              className={`w-full py-3 rounded-lg font-bold text-white transition-colors ${
+                submitting
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-red-500 hover:bg-red-600"
+              }`}
+            >
+              {submitting ? "Submitting..." : "Final Submit"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

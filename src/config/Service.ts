@@ -2,15 +2,14 @@
 import type {
   AnswerData,
   ContestData,
-  registrationFormData,
-  UserToken,
+  RegistrationFormData,
 } from "../components/Interfaces/index";
 import api from "./api";
-
+const token = sessionStorage.getItem("token") || "";
 class Service {
-  static async fetchUserData({ token }: UserToken) {
+  static async fetchUserData() {
     try {
-      const response = await api.get("/admin/user", {
+      const response = await api.get("/user", {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -25,7 +24,7 @@ class Service {
       }
     }
   }
-  static async fetchContestData({ token }: UserToken) {
+  static async fetchContestData() {
     try {
       const response = await api.get("/admin/contest/all", {
         headers: {
@@ -43,13 +42,7 @@ class Service {
       }
     }
   }
-  static async fetchContestDetails({
-    id,
-    token,
-  }: {
-    id: string;
-    token: UserToken;
-  }) {
+  static async fetchContestDetails(id: any) {
     try {
       const response = await api.get(`/admin/contest/${id}`, {
         headers: {
@@ -66,7 +59,25 @@ class Service {
       }
     }
   }
-  static async fetchResult({ token }: { token: UserToken }) {
+
+  static async fetchAllQuestions() {
+    try {
+      const response = await api.get(`/admin/question/all`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      return response.data.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error("Failed to fetch contest details: " + error.message);
+      } else {
+        throw new Error("Failed to fetch contest details");
+      }
+    }
+  }
+  static async fetchResult() {
     try {
       const response = await api.get(`admin/result/all`, {
         headers: {
@@ -84,7 +95,7 @@ class Service {
       }
     }
   }
-  static async declareResult({ id, token }: { id: string; token: UserToken }) {
+  static async declareResult({ id }: { id: string }) {
     try {
       const response = await api.get(`/admin/result/${id}/declare`, {
         headers: {
@@ -102,13 +113,7 @@ class Service {
       }
     }
   }
-  static async fetchResultDetails({
-    id,
-    token,
-  }: {
-    id: string;
-    token: UserToken;
-  }) {
+  static async fetchResultDetails({ id }: { id: string }) {
     try {
       const response = await api.get(`/admin/result/results/${id}`, {
         headers: {
@@ -126,17 +131,120 @@ class Service {
       }
     }
   }
-  static async AddStudentForm({
-    formDataToSend,
-  }: {
-    formDataToSend: registrationFormData;
-  }) {
+
+  static async updateContestDetails(id: string, data: any) {
     try {
-      const response = await api.post("/user/register", formDataToSend, {
+      const response = await api.put(`/admin/contest/update/${id}`, data, {
         headers: {
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
+      return response.data.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error("Failed to update contest details: " + error.message);
+      } else {
+        throw new Error("Failed to update contest details");
+      }
+    }
+  }
+
+  static async UpdateQuestionById({
+    questionId,
+    updatedData,
+  }: {
+    questionId: string;
+    updatedData: { question: string; set: string; difficult: string };
+  }) {
+    console.log("Service - UpdateQuestionById called with:", {
+      questionId,
+      updatedData,
+    });
+    try {
+      const response = await api.put(
+        `/admin/question/update/${questionId}`,
+        updatedData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error("Failed to update question by id: " + error.message);
+      } else {
+        throw new Error("Failed to update question by id");
+      }
+    }
+  }
+  static async createQuestions(data: any) {
+    try {
+      const response = await api.post("/admin/question/create", data, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      return response.data.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error("Failed to create question: " + error.message);
+      } else {
+        throw new Error("Failed to create question");
+      }
+    }
+  }
+
+  static async deleteQuestionById({ questionId }: { questionId: string }) {
+    console.log("Service - deleteQuestionById called with:", {
+      questionId,
+    });
+    try {
+      const response = await api.delete(
+        `/admin/question/remove/${questionId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error("Failed to delete question by id: " + error.message);
+      } else {
+        throw new Error("Failed to delete question by id");
+      }
+    }
+  }
+
+  static async AddStudentForm(data: RegistrationFormData) {
+    try {
+      const formData = new FormData();
+
+      Object.keys(data).forEach((key) => {
+        const value = (data as any)[key];
+
+        if (value instanceof File) {
+          formData.append(key, value);
+        } else if (typeof value === "object" && value !== null) {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, value);
+        }
+      });
+
+      const response = await api.post("/user/register", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      console.log("Add Student Form Response:", response);
       return response.data;
     } catch (error) {
       if (error instanceof Error) {
@@ -146,7 +254,7 @@ class Service {
       }
     }
   }
-  static async getAllStudentContestData({ token }: UserToken) {
+  static async getAllStudentContestData() {
     try {
       const response = await api.get("/contest/all", {
         headers: {
@@ -165,13 +273,7 @@ class Service {
       }
     }
   }
-  static async getStudentContestDetails({
-    id,
-    token,
-  }: {
-    id: string;
-    token: UserToken;
-  }) {
+  static async getStudentContestDetails({ id }: { id: string }) {
     try {
       const response = await api.get(`/contest/${id}`, {
         headers: {
@@ -190,30 +292,18 @@ class Service {
       }
     }
   }
-  static async studentContestAttempt({
-    id,
-    token,
-  }: {
-    id: ContestData["_id"];
-    token: UserToken;
-  }) {
-    try {
-      const response = await api.post(`/contest/attempt/${id}/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      return response.data;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(
-          "Failed to fetch student contest result: " + error.message
-        );
-      }
-    }
+static async studentContestAttempt({ id }: { id: ContestData["_id"] }) {
+  try {
+    const response = await api.post(`/contest/attempt/${id}/`);
+    console.log("Student Contest Attempt Response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.log("Contest attempt error:", error.response?.data);
+    throw error; // <-- important to keep backend status
   }
-  static async studentContestResultAll({ token }: UserToken) {
+}
+
+  static async studentContestResultAll() {
     try {
       const response = await api.get("/result/all", {
         headers: {
@@ -232,13 +322,7 @@ class Service {
       }
     }
   }
-  static async studentContestResultDetails({
-    id,
-    token,
-  }: {
-    id: string;
-    token: UserToken;
-  }) {
+  static async studentContestResultDetails({ id }: { id: string }) {
     try {
       const response = await api.get(`/result/${id}`, {
         headers: {
@@ -259,11 +343,9 @@ class Service {
   }
   static async studentContestSubmit({
     id,
-    token,
     answers,
   }: {
     id: string;
-    token: UserToken;
     answers: any;
   }) {
     try {
@@ -286,15 +368,12 @@ class Service {
   static async AddAnswerById({
     resultId,
     submitData,
-    token,
   }: {
     resultId: string;
     submitData: AnswerData;
-    token: UserToken;
   }) {
     console.log("Service - AddAnswerById called with:", {
       resultId,
-      token,
       submitData,
     });
     try {
@@ -314,6 +393,51 @@ class Service {
         throw new Error("Failed to add answer by id: " + error.message);
       } else {
         throw new Error("Failed to add answer by id");
+      }
+    }
+  }
+
+  static async finalSubmitAnswers({
+    resultId,
+  }: {
+    resultId: string | null | undefined;
+  }) {
+    try {
+      const response = await api.post(
+        `/result/submit/${resultId}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      console.log("Final submit response:", response.data);
+
+      return response.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error("Failed to submit final answers: " + error.message);
+      } else {
+        throw new Error("Failed to submit final answers");
+      }
+    }
+  }
+  static async createContest(data: any) {
+    try {
+      const response = await api.post("/admin/contest/create", data, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error("Failed to create contest: " + error.message);
+      } else {
+        throw new Error("Failed to create contest");
       }
     }
   }
